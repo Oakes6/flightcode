@@ -39,7 +39,7 @@ float altCurrent = 0;                       //current altitude
 float altInitial = 0;                       //initial calculated altitude
 float altPrevious = 0;                      //previous altitude
 float startTimer;                           //start of rocket launch
-float projectedAlt = 0;
+float projectedAltitude = 0;
 float loopCtr = 0;
 float timeDiff = 0;
 float velTimer1 = 0;                        //initial velocity timer
@@ -202,7 +202,7 @@ int pid_loop(int finPosition, float altitude, float velocity, float accel, float
     float ki = 0.01f;              // are the pid loop gain factors.
     float kd = 0.05f;
     float setpoint = 5280;          // Target altitude in feet.
-    float projectedAltitude = projected_altitude(velocity, accel, altitude);
+    projectedAltitude = projected_altitude(velocity, accel, altitude);
 
     // Proportional term.
     float P = (projectedAltitude) - setpoint;
@@ -281,8 +281,8 @@ float projected_altitude(float veloc, float accel, float currentAlt) {
     // loop must know how far off the apogee is from the target altitude.
     float termV = sqrt((32.174 * veloc * veloc) / -(accel + 32.174));
     float funcConst = ((veloc * veloc) + (termV * termV)) / (termV * termV);
-    float projectedAltitude = ((termV * termV) / (2 * 32.174)) * log(funcConst) + currentAlt;
-    return projectedAltitude;
+    float projection = ((termV * termV) / (2 * 32.174)) * log(funcConst) + currentAlt;
+    return projection;
 }
 
 // prints out flight data to micro sd card breakout
@@ -299,7 +299,7 @@ void printData(File df, int loopCtrIn, float posIn, float altIn, float velIn, fl
   df.print("acceleration: ");
   df.println(accelIn);
   df.print("projected apogee: ");
-  df.println(5280.00);
+  df.println(projectedAltitude);
   df.print("time difference: ");
   df.println(timeDiffIn);
 }
