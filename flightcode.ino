@@ -5,17 +5,22 @@
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
 #include <Adafruit_BMP085_U.h>
+#include <Adafruit_BME280.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM303_U.h>
-#include "utility/Adafruit_MS_PWMServoDriver.h"
+#include <Adafruit_MMA8451.h>
+#include <SPI.h>
+
+#define SEALEVELPRESSURE_HPA (1013.25)
+
 
 // motor shield object
 Adafruit_MotorShield AFMS = Adafruit_MotorShield(); 
 // pointer to motor at port 1
 Adafruit_DCMotor *myMotor = AFMS.getMotor(4);
 /* Assign a unique ID to this sensor at the same time */
-Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(54321);
-Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
+Adafruit_MMA8451 mma = Adafruit_MMA8451();
+Adafruit_BME280 bme;
 
 
 // VARS
@@ -55,21 +60,20 @@ void setup() {
   // attach interrupt to pin 3 for encoder output
   attachInterrupt(digitalPinToInterrupt(3), channelAEvent, CHANGE);
 
+  // test pressure sensor 
+  bool status;
+  status = bme.begin();  
+    if (!status) {
+        Serial.println("Could not find a valid BME280 sensor, check wiring!");
+        while (1);
+    }
+    
   // test acceleration sensor
-  if(!accel.begin())
-  {
-    /* There was a problem detecting the ADXL345 ... check your connections */
-    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
-    while(1);
+  if (! mma.begin()) {
+    Serial.println("Couldnt start");
+    while (1);
   }
-
-  // test barometric pressure sensor
-  if(!bmp.begin())
-  {
-    // There was a problem detecting the BMP085 ... check your connections 
-    Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
-    while(1);
-  }
+  mma.setRange(MMA8451_RANGE_2_G);
 
   // set initial Alt... averaged from 20 readings
   for (int i = 0; i < 20; i++) {
@@ -103,7 +107,7 @@ void loop() {
     accelZ = getAccelZ();
     Serial.println(accelZ);
     //if accel is pos, we have launched
-    if (accelZ < 0) {
+    if (accelZ > 0) {
       hasLaunched = true;
       // start timer
       startTimer = millis();  
@@ -115,7 +119,7 @@ void loop() {
     accelZ = getAccelZ();
     Serial.println(accelZ);
     //once accel is neg, the motor has burned out
-    if (accelZ > 0) {
+    if (accelZ < 0) {
       hasBurnedOut = true;  
     }
   }
@@ -215,29 +219,11 @@ int pid_loop(int finPosition, float altitude, float velocity, float accel) {
 
 // returns current altitude
 float calcAlt() {
-
-  /* Get a new sensor event (needed for the 10 dof) */ 
-  sensors_event_t event;
-  bmp.getEvent(&event);
-
+  
   float alt;
+  alt = bme.readAltitude(SEALEVELPRESSURE_HPA) * 3.280840;
 
-  if (event.pressure)
-  {   
-     
-    /* First we get the current temperature from the BMP085 */
-    float temperature;
-    bmp.getTemperature(&temperature);
-
-    /* Then convert the atmospheric pressure, and SLP to altitude         */
-    /* Update this next line with the current SLP for better results      */
-    float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
-
-    //calc altitude, convert to feet (from meters)
-    alt = bmp.pressureToAltitude(seaLevelPressure,event.pressure) * 3.280840;
-
-    return alt;
-  }
+  return alt;
 }
 
 // calculates velocity for the Z-axis
@@ -259,10 +245,10 @@ float getAccelZ () {
 
   float zAccel;
 
-  sensors_event_t event2; 
-  accel.getEvent(&event2);
+  sensors_event_t event; 
+  mma.getEvent(&event);
 
-  zAccel = event2.acceleration.z;
+  zAccel = event.acceleration.z;
   //calc to ft/s
   zAccel *= -3.280840;
 
