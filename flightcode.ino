@@ -10,9 +10,12 @@
 #include <Adafruit_LSM303_U.h>
 #include <Adafruit_MMA8451.h>
 #include <SPI.h>
+#include <SD.h>
+
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
+const int chipSelect = 10;
 
 // motor shield object
 Adafruit_MotorShield AFMS = Adafruit_MotorShield(); 
@@ -35,12 +38,15 @@ float accelZ;                               //z acceleration
 float altCurrent = 0;                       //current altitude
 float altInitial = 0;                       //initial calculated altitude
 float altPrevious = 0;                      //previous altitude
-float apogee = 5280;                        //desired final height
-float calculatedApogee;                     //apogee calculated from previous variables
 float startTimer;                           //start of rocket launch
+float projectedAlt = 0;
+float loopCtr = 0;
+float timeDiff = 0;
 float velTimer1 = 0;                        //initial velocity timer
 float velTimer2 = 0;                        //final velocity timer
 float velZ = 0;                             //z velocity
+
+File dataFile;
 
 // pid loop 
 float P_naught = 0;
@@ -60,6 +66,14 @@ void setup() {
   // attach interrupt to pin 3 for encoder output
   attachInterrupt(digitalPinToInterrupt(3), channelAEvent, CHANGE);
 
+  // initialize SD card
+  if (!SD.begin(chipSelect)) {
+    Serial.println("SD card fail");
+  }
+  dataFile = SD.open("launchdata.txt", FILE_WRITE);
+  dataFile.println("-------------- LAUNCH DATA --------------");
+  dataFile.println();
+  
   // test pressure sensor 
   bool status;
   status = bme.begin();  
@@ -70,7 +84,7 @@ void setup() {
     
   // test acceleration sensor
   if (! mma.begin()) {
-    Serial.println("Couldnt start");
+    Serial.println("Couldnt start mma !!!! Wiring check.");
     while (1);
   }
   mma.setRange(MMA8451_RANGE_2_G);
@@ -101,6 +115,7 @@ void setup() {
 
 // main execution
 void loop() {
+  loopCtr++;
  
   // PHASE 1 (PRE-LAUNCH)
   while (!hasLaunched) {
@@ -130,11 +145,12 @@ void loop() {
 
   //calculate velocity
   velTimer2 = millis();
+  timeDiff = (velTimer2 - velTimer1) / 1000;
   velZ = calcVelZ(velTimer1, velTimer2, altCurrent, altPrevious);
   velTimer1 = millis();
 
 
-  int newPosition = pid_loop(encoderTicks, altCurrent, velZ, accelZ);
+  int newPosition = pid_loop(encoderTicks, altCurrent, velZ, accelZ, timeDiff);
   
   while (encoderTicks <= newPosition) {
     myMotor->run(FORWARD);
@@ -150,6 +166,8 @@ void loop() {
   if (velZ < 0) {
     // return home and shut down
   }
+
+  printData(dataFile, loopCtr, newPosition, altCurrent, velZ, accelZ, timeDiff);
   
   delay(500);
 
@@ -178,7 +196,7 @@ void channelAEvent() {
 }
 
 // produces deterministic output from drag plates
-int pid_loop(int finPosition, float altitude, float velocity, float accel) {
+int pid_loop(int finPosition, float altitude, float velocity, float accel, float timeDiff) {
     // Pid Loop constants.
     float kp = 0.075f;             // kp, ki, and kd 
     float ki = 0.01f;              // are the pid loop gain factors.
@@ -189,7 +207,6 @@ int pid_loop(int finPosition, float altitude, float velocity, float accel) {
     // Proportional term.
     float P = (projectedAltitude) - setpoint;
     
-    float timeDiff = (velTimer2 - velTimer1) / 1000;
     // Integral term.
     float I = I_naught + (P * timeDiff);
     if (I > 10) { I = 10; }         // These if statements are here to 
@@ -244,7 +261,9 @@ float calcVelZ(float timer1, float timer2, float altCurrent, float altPrevious) 
 float getAccelZ () {
 
   float zAccel;
-
+  
+  mma.read();
+  
   sensors_event_t event; 
   mma.getEvent(&event);
 
@@ -256,11 +275,32 @@ float getAccelZ () {
   
 }
 
+// calulation for projected altitude
 float projected_altitude(float veloc, float accel, float currentAlt) {
     // Calculate the projected altitude, this is important because the PID
     // loop must know how far off the apogee is from the target altitude.
-    float funcConst = (2 * veloc * veloc) / (accel - 32.174);
-    float projectedAltitude = sqrt(funcConst) + currentAlt;
+    float termV = sqrt((32.174 * veloc * veloc) / -(accel + 32.174));
+    float funcConst = ((veloc * veloc) + (termV * termV)) / (termV * termV);
+    float projectedAltitude = ((termV * termV) / (2 * 32.174)) * log(funcConst) + currentAlt;
     return projectedAltitude;
-
 }
+
+// prints out flight data to micro sd card breakout
+void printData(File df, int loopCtrIn, float posIn, float altIn, float velIn, float accelIn, float timeDiffIn) {
+  df.print("--------------   LOOP ");
+  df.print(loopCtrIn);
+  df.println("    --------------");
+  df.print("plate position: ");
+  df.println(posIn);
+  df.print("current altitude: ");
+  df.println(altIn);
+  df.print("velocity: ");
+  df.println(velIn);
+  df.print("acceleration: ");
+  df.println(accelIn);
+  df.print("projected apogee: ");
+  df.println(5280.00);
+  df.print("time difference: ");
+  df.println(timeDiffIn);
+}
+
