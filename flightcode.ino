@@ -70,9 +70,20 @@ void setup() {
   if (!SD.begin(chipSelect)) {
     Serial.println("SD card fail");
   }
-  dataFile = SD.open("launchdata.txt", FILE_WRITE);
-  dataFile.println("-------------- LAUNCH DATA --------------");
-  dataFile.println();
+  dataFile = SD.open("launch.txt", FILE_WRITE);
+  if (dataFile) {
+    Serial.print("Writing to test.txt...");
+    dataFile.println("testing 1, 2, 3.");
+    dataFile.println("-------------- LAUNCH DATA --------------");
+    dataFile.println();
+    // close the file:
+    dataFile.close();
+    Serial.println("done.");
+  } else {
+    // if the file didn't open, print an error:
+    Serial.println("error opening test.txt");
+  }
+//  dataFile.close();
   
   // test pressure sensor 
   bool status;
@@ -96,15 +107,15 @@ void setup() {
   altInitial /= 20;
 
   // launch pad test actuation test 
-  myMotor->setSpeed(50);
+  myMotor->setSpeed(150);
   while (encoderTicks < 170) {
-    myMotor->run(BACKWARD);
+    myMotor->run(FORWARD);
     Serial.print("count: ");
     Serial.println(encoderTicks);
     Serial.println();
   }
   while (encoderTicks >= -15) {
-    myMotor->run(FORWARD);
+    myMotor->run(BACKWARD);
     Serial.print("count: ");
     Serial.println(encoderTicks);
     Serial.println();
@@ -168,7 +179,7 @@ void loop() {
   }
 
   printData(dataFile, loopCtr, newPosition, altCurrent, velZ, accelZ, timeDiff);
-  
+    
   delay(500);
 
 }
@@ -287,6 +298,7 @@ float projected_altitude(float veloc, float accel, float currentAlt) {
 
 // prints out flight data to micro sd card breakout
 void printData(File df, int loopCtrIn, float posIn, float altIn, float velIn, float accelIn, float timeDiffIn) {
+  df = SD.open("launchdata.txt", FILE_WRITE);
   df.print("--------------   LOOP ");
   df.print(loopCtrIn);
   df.println("    --------------");
@@ -302,5 +314,6 @@ void printData(File df, int loopCtrIn, float posIn, float altIn, float velIn, fl
   df.println(projectedAltitude);
   df.print("time difference: ");
   df.println(timeDiffIn);
+  df.close();
 }
 
