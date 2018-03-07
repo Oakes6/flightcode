@@ -146,7 +146,8 @@ void loop() {
     Serial.println(accelZ);
     //once accel is neg, the motor has burned out
     if (accelZ < 0) {
-      hasBurnedOut = true;  
+      hasBurnedOut = true;
+        
     }
   }
 
