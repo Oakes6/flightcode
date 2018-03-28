@@ -11,6 +11,7 @@
 #include <Adafruit_MMA8451.h>
 #include <SPI.h>
 #include <SD.h>
+#include <Math.h>
 
 
 #define SEALEVELPRESSURE_HPA (1013.25)
@@ -72,7 +73,7 @@ void setup() {
   }
   dataFile = SD.open("launch.txt", FILE_WRITE);
   if (dataFile) {
-    Serial.print("Writing to test.txt...");
+    Serial.print("Writing to launch.txt...");
     dataFile.println("testing 1, 2, 3.");
     dataFile.println("-------------- LAUNCH DATA --------------");
     dataFile.println();
@@ -81,9 +82,8 @@ void setup() {
     Serial.println("done.");
   } else {
     // if the file didn't open, print an error:
-    Serial.println("error opening test.txt");
+    Serial.println("error opening launch.txt");
   }
-//  dataFile.close();
   
   // test pressure sensor 
   bool status;
@@ -107,7 +107,7 @@ void setup() {
   altInitial /= 20;
 
   // launch pad test actuation test 
-  myMotor->setSpeed(150);
+  /*myMotor->setSpeed(150);
   while (encoderTicks < 170) {
     myMotor->run(FORWARD);
     Serial.print("count: ");
@@ -120,7 +120,7 @@ void setup() {
     Serial.println(encoderTicks);
     Serial.println();
   }
-  myMotor->run(RELEASE);
+  myMotor->run(RELEASE);*/
   
 }
 
@@ -131,12 +131,13 @@ void loop() {
   // PHASE 1 (PRE-LAUNCH)
   while (!hasLaunched) {
     accelZ = getAccelZ();
-    Serial.println(accelZ);
+//    Serial.println(accelZ);
     //if accel is pos, we have launched
     if (accelZ > 0) {
       hasLaunched = true;
       // start timer
-      startTimer = millis();  
+      startTimer = millis();
+      Serial.println("Phase ONE HAS PASSED");  
     }
   }
   
@@ -147,6 +148,7 @@ void loop() {
     //once accel is neg, the motor has burned out
     if (accelZ < 0) {
       hasBurnedOut = true;
+      Serial.println("PHASE TWO HAS PASSED");
         
     }
   }
@@ -179,7 +181,7 @@ void loop() {
     // return home and shut down
   }
 
-  printData(dataFile, loopCtr, newPosition, altCurrent, velZ, accelZ, timeDiff);
+  printData(loopCtr, newPosition, altCurrent, velZ, accelZ, timeDiff);
     
   delay(500);
 
@@ -298,8 +300,14 @@ float projected_altitude(float veloc, float accel, float currentAlt) {
 }
 
 // prints out flight data to micro sd card breakout
-void printData(File df, int loopCtrIn, float posIn, float altIn, float velIn, float accelIn, float timeDiffIn) {
-  df = SD.open("launchdata.txt", FILE_WRITE);
+void printData(int loopCtrIn, float posIn, float altIn, float velIn, float accelIn, float timeDiffIn) {
+  File df = SD.open("launch.txt", FILE_WRITE);
+  if (df) {
+    Serial.println("Works");
+  }
+  else {
+    Serial.println("Nope");
+  }
   df.print("--------------   LOOP ");
   df.print(loopCtrIn);
   df.println("    --------------");
